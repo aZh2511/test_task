@@ -3,6 +3,7 @@ from alias.models import Alias
 from django.utils import timezone
 import datetime
 from django.core.exceptions import ValidationError
+import unittest
 
 
 class AliasTest(TestCase):
@@ -48,114 +49,85 @@ class AliasTest(TestCase):
             5. New infinite-alias starts before an existing one, ValidationError is expected.
         """
 
-        mistakes = 0
-
         # Filling in database
         Alias.objects.create(alias='test-alias-one', target='test-alias-target-one', start=self.moment,
                              end=self.moment + datetime.timedelta(hours=5))
 
         # Overlapping check 1
-        try:
+        with self.assertRaises(ValidationError):
             Alias.objects.create(alias='test-alias-one', target='test-alias-target-one', start=self.moment,
                                  end=self.moment + datetime.timedelta(hours=5))
-        except ValidationError:
-            mistakes += 1
 
         # Overlapping check 2
-        try:
+        with self.assertRaises(ValidationError):
             Alias.objects.create(alias='test-alias-one', target='test-alias-target-one',
                                  start=self.moment - datetime.timedelta(hours=2),
                                  end=self.moment + datetime.timedelta(hours=3))
-        except ValidationError:
-            mistakes += 1
 
         # Overlapping check 3
-        try:
+        with self.assertRaises(ValidationError):
             Alias.objects.create(alias='test-alias-one', target='test-alias-target-one',
                                  start=self.moment + datetime.timedelta(hours=1),
                                  end=self.moment + datetime.timedelta(hours=10))
-        except ValidationError:
-            mistakes += 1
 
         # Overlapping check 4
-        try:
+        with self.assertRaises(ValidationError):
             Alias.objects.create(alias='test-alias-one', target='test-alias-target-one',
                                  start=self.moment - datetime.timedelta(hours=1),
                                  end=self.moment + datetime.timedelta(hours=10))
-        except ValidationError:
-            mistakes += 1
 
         # Overlapping check 5
-        try:
+        with self.assertRaises(ValidationError):
             Alias.objects.create(alias='test-alias-one', target='test-alias-target-one',
                                  start=self.moment - datetime.timedelta(hours=1),
                                  end=None)
-        except ValidationError:
-            mistakes += 1
-
-        # 5 mistakes are expected
-        self.assertEqual(5, mistakes)
 
     def test_overlapping_infinite(self):
         """
-        Test case for overlapping of finite and infinite aliases:
+        Test case for overlapping of infinite aliases:
             1. New infinite alias starts before start of an existing one, ValidationError is expected.
             1. New infinite alias starts after start of an existing one, ValidationError is expected.
         """
-
-        mistakes = 0
 
         # Filling in database with infinite alias
         Alias.objects.create(alias='test-alias-one', target='test-alias-target-one', start=self.moment,
                              end=None)
 
         # Overlapping check 1
-        try:
+        with self.assertRaises(ValidationError):
             Alias.objects.create(alias='test-alias-one', target='test-alias-target-one',
                                  start=self.moment - datetime.timedelta(hours=1),
                                  end=None)
-        except ValidationError:
-            mistakes += 1
 
         # Overlapping check 2
-        try:
+        with self.assertRaises(ValidationError):
             Alias.objects.create(alias='test-alias-one', target='test-alias-target-one',
                                  start=self.moment + datetime.timedelta(hours=1),
                                  end=None)
-        except ValidationError:
-            mistakes += 1
-
-        self.assertEqual(2, mistakes)
 
     def test_uniqueness_check(self):
         """
         Test case for incorrect input avoiding.
-            1. Aliases with same alias value must refer to the same target, ValidationError is expected.
+            1. Aliases may refer to different targets unless they overlap.
             2. Alias can not end before start, ValidationError is expected.
         """
-
-        mistakes = 0
 
         # Filling in database.
         Alias.objects.create(alias='test-alias-one', target='test-alias-target-one', start=self.moment,
                              end=self.moment + datetime.timedelta(hours=5))
 
         # 1
-        try:
-            Alias.objects.create(alias='test-alias-one', target='test-alias-target-two', start=self.moment,
-                                 end=self.moment + datetime.timedelta(hours=5))
-        except ValidationError:
-            mistakes += 1
+        Alias.objects.create(alias='test-alias-one', target='test-alias-target-two', start=self.moment,
+                             end=self.moment + datetime.timedelta(hours=5))
 
         # 2
-        try:
+        with self.assertRaises(ValidationError):
             Alias.objects.create(alias='test-alias-one', target='test-alias-target-one',
                                  start=self.moment - datetime.timedelta(hours=3),
                                  end=self.moment - datetime.timedelta(hours=5))
-        except ValidationError:
-            mistakes += 1
 
-        self.assertEqual(2, mistakes)
+        result = len(Alias.objects.all())
+        self.assertEqual(2, result)
 
     def test_get_aliases(self):
         """Test case for get_aliases method"""
@@ -206,7 +178,7 @@ class AliasTest(TestCase):
 
     def test_alias_replace(self):
         """Test case for alias_replace method"""
-        mistakes = 0
+
         # Filling in database.
         Alias.objects.create(alias='test-alias-one', target='test-alias-target-one', start=self.moment,
                              end=self.moment + datetime.timedelta(hours=5))
@@ -214,12 +186,9 @@ class AliasTest(TestCase):
         Alias.objects.create(alias='test-alias-one', target='test-alias-target-one',
                              start=self.moment - datetime.timedelta(hours=3),
                              end=self.moment)
-        try:
+        with self.assertRaises(ValidationError):
             Alias.alias_replace(existing_alias='test-alias-one', replace_at=self.moment + datetime.timedelta(hours=2),
                                 new_alias_value='test-alias-one')
-        except ValidationError:
-            mistakes += 1
-        self.assertEqual(1, mistakes)
 
         # end value for new alias will be set as None
         Alias.alias_replace(existing_alias='test-alias-one', replace_at=self.moment + datetime.timedelta(hours=2),
@@ -229,3 +198,7 @@ class AliasTest(TestCase):
         result = Alias.get_aliases(target='test-alias-target-one', from_=self.moment + datetime.timedelta(days=2),
                                    to=self.moment + datetime.timedelta(days=3))
         self.assertEqual(1, len(result))
+
+
+if __name__ == '__main__':
+    unittest.main()
