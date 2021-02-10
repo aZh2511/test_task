@@ -6,6 +6,14 @@ Aliases are available by alias value and target value. Methods of Alias Model:
 2. Alias.alias_replace() - replaces an existing alias with a new one (Alias.alias_replace.__doc__ - for more info).
 3. Ordinary built-in django model.Model methods.
 
+## Changes
+1. Now error raising check in tests is made with self.assertRaises.
+2. Optimized get_aliases. Only one hit db (used django.db.models.Q).
+3. Added some type hints.
+4. Overlapping check isn't made with iteration any more. Get all aliases with .filter(alias, target) and then look in that data with .filter() for any occurrences that can cause a Error.
+5. Now Alias objects with the same alias value can refer to different targets unless they overlap.
+6. Changed docstrings with the PEP-257 demands (Still not sure if it is exactly what PEP requires).
+
 
 ## How to install
 1. Copy project to your computer.
@@ -71,8 +79,7 @@ Also you can use datetime without timezone, because I have made auto adding of t
 
 
 ***
- I hope that I handled the task. If something is wrong I will be very grateful to have 
- your feedback so that I could go on improving my skills!
+
  
 Best regards,
  

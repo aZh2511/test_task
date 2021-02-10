@@ -1,2 +1,4 @@
 venv/
 venv
+old_version.py
+.gitignore
