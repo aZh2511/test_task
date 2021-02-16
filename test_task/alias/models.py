@@ -22,19 +22,31 @@ class Alias(models.Model):
 
         return True
 
+    @staticmethod
+    def _add_timezone(*args):
+        """Add timezone to datetime type values if needed."""
+        for value in args:
+            if not value.tzname():
+                return pytz.utc.localize(value)
+            return value
+
+    @staticmethod
+    def _get_pre_aliases(target: str or models.SlugField, alias=None):
+        """Return aliases by alias and target values."""
+        if not alias:
+            return Alias.objects.filter(target=target)
+        return Alias.objects.filter(alias=alias, target=target)
+
     def _overlap_check(self):
         """Check new instance for overlapping with existing ones."""
+        data = self._get_pre_aliases(alias=self.alias, target=self.target).exclude(id=self.pk)
 
-        data = Alias.objects.filter(alias=self.alias, target=self.target).exclude(id=self.pk)
         # For creating of finite alias.
         if self.end:
-            # compare with finite aliases.
-            if data.filter(Q(start__lt=self.end, end__gt=self.end) | Q(start__lt=self.end, end__gt=self.start) |
-                           Q(start__lte=self.start, end__gte=self.end)):
+            # Compare with finite and infinite aliases.
+            if data.filter(Q(start__lt=self.end) & (Q(end__gt=self.start) | Q(end__isnull=True))):
                 raise ValidationError('Aliases can not overlap!')
-            # Compare with infinite aliases.
-            if data.filter(start__lt=self.end, end=None):
-                raise ValidationError('Aliases can not overlap!')
+
         # For creating of infinite alias.
         if not self.end:
             # Compare with finite aliases.
@@ -59,29 +71,24 @@ class Alias(models.Model):
         Return:
             the set of aliases in the specified time range.
         """
+
         # Add a timezone to time var.
         try:
-            from_ = pytz.utc.localize(from_)
-            to = pytz.utc.localize(to)
+            from_ = Alias._add_timezone(from_)
+            to = Alias._add_timezone(to)
         except ValueError:
             pass
 
         if from_ > to:
-            raise ValidationError('Alias can not end before start!')
+            raise ValidationError('Time range can not end before start!')
 
+        data = Alias._get_pre_aliases(target=target)
         # QuerySet of aliases in the specified time range.
-        data = Alias.objects.filter(
-            (
-                (Q(target=target, start__range=[from_, to])) |
-                (Q(target=target, end__range=[from_, to]) & ~Q(end=from_)) |
-                (Q(target=target, start__lt=from_, end__gt=to)) |
-                (Q(target=target, start__lte=to, end=None))
-             )
-        )
 
-        aliases = [item.alias for item in data]
+        data = data.filter((Q(start__lt=to) & (Q(end__gt=from_) | Q(end__isnull=True))))
+        aliases = set(item.alias for item in data)
 
-        return set(aliases)
+        return aliases
 
     @staticmethod
     def alias_replace(existing_alias: str, replace_at: datetime, new_alias_value: str):
@@ -101,15 +108,16 @@ class Alias(models.Model):
         if existing_alias == new_alias_value:
             raise ValidationError('You can not replace alias with the same alias value!')
         # Add a timezone to time replace_at.
+
         try:
-            replace_at = pytz.utc.localize(replace_at)
+            replace_at = Alias._add_timezone(replace_at)
         except ValueError:
             pass
 
         # Process no alias to replace.
         try:
-            alias = Alias.objects.filter(alias=existing_alias, start__lte=replace_at).exclude(end__lt=replace_at)[0]
-        except IndexError:
+            alias = Alias.objects.get(alias=existing_alias, start__lte=replace_at, end__gt=replace_at)
+        except models.ObjectDoesNotExist:
             raise ValidationError('Alias does not exist!')
         alias.end = replace_at
         alias.save()
