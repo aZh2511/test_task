@@ -7,17 +7,14 @@ Aliases are available by alias value and target value. Methods of Alias Model:
 3. Ordinary built-in django model.Model methods.
 
 ## Changes
-1. Now error raising check in tests is made with self.assertRaises.
-2. Optimized get_aliases. Only one hit db (used django.db.models.Q).
-3. Added some type hints.
-4. Overlapping check isn't made with iteration any more. Get all aliases with .filter(alias, target) and then look in that data with .filter() for any occurrences that can cause a Error.
-5. Now Alias objects with the same alias value can refer to different targets unless they overlap.
-6. Changed docstrings with the PEP-257 demands (Still not sure if it is exactly what PEP requires).
+1. Separate Alias method for getting data to be filtered.
+2. Separate method for adding timezone for datetime type values IF needed! (if already provided - pass)
+3. Filtering with Q optimized as recommended.
 
 
 ## How to install
 1. Copy project to your computer.
-2. Move to test_task folder (not test_task/test_task!).
+2. Move to test_task folder (not test_task/test_task !).
 3. Make sure python version is 3.8 at least
     ```commandline 
     python3 -V
@@ -75,9 +72,6 @@ Don't forget to import everything!
 ```python
 from alias.models import Alias
 ```
-Also you can use datetime without timezone, because I have made auto adding of timezone.
-
-
 ***
 
  
